@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Vibe Intel Dashboard</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0a;color:#e0d5c0;font-family:'Courier New',monospace}
+@keyframes spin{to{transform:rotate(360deg)}}
+button:hover{opacity:.75;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback} = React;
+const SB_URL="https://icchqhpqgfqgyjeasotc.supabase.co";
+const SB_KEY="sb_publishable_aj7sDY-054gHKFs5aTqiMQ_DrOMZgsK";
+const SB_H={"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json"};
+const CC={Tools:{bg:"#1a2e1a",border:"#4ade80",text:"#4ade80"},Prompts:{bg:"#1e1a2e",border:"#a78bfa",text:"#a78bfa"},Techniques:{bg:"#2e1a1a",border:"#f87171",text:"#f87171"},Inspo:{bg:"#2e2a1a",border:"#fbbf24",text:"#fbbf24"}};
+const CI={Tools:"⚙",Prompts:"✦",Techniques:"◈",Inspo:"★"};
+const CATS=["All","Tools","Prompts","Techniques","Inspo"];
+
+function makeThumb(cat,label){
+  const c=CC[cat]||CC.Tools;
+  const t=((label||"").substring(0,22).toUpperCase()).replace(/[^A-Z0-9 ]/g,"");
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="225"><rect width="400" height="225" fill="#0d0d0d"/><rect width="400" height="225" fill="${c.bg}" opacity="0.6"/><rect y="0" width="400" height="2" fill="${c.border}" opacity="0.4"/><rect y="223" width="400" height="2" fill="${c.border}" opacity="0.4"/><text x="200" y="108" font-family="monospace" font-size="11" fill="${c.border}" text-anchor="middle" opacity="0.5" letter-spacing="3">${(cat||"").toUpperCase()}</text><text x="200" y="130" font-family="monospace" font-size="8" fill="${c.text}" text-anchor="middle" opacity="0.4" letter-spacing="2">${t}</text></svg>`;
+  try{return "data:image/svg+xml;base64,"+btoa(svg);}
+  catch(_){return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);}
+}
+function toRow(e){return{id:e.id,category:e.category,title:e.title,summary:e.summary,action_steps:e.actionSteps||[],tags:e.tags||[],thumbnail:e.thumbnail||"",timestamp:e.timestamp||Date.now()};}
+function fromRow(r){return{id:r.id,category:r.category,title:r.title,summary:r.summary,actionSteps:r.action_steps||[],tags:r.tags||[],thumbnail:r.thumbnail||makeThumb(r.category,r.title),timestamp:r.timestamp||Date.now()};}
+async function sbLoad(){const res=await fetch(`${SB_URL}/rest/v1/intel_entries?order=timestamp.desc&limit=500`,{headers:SB_H});if(!res.ok)throw new Error("Load failed "+res.status);return(await res.json()).map(fromRow);}
+async function sbUpsert(entries){const res=await fetch(`${SB_URL}/rest/v1/intel_entries`,{method:"POST",headers:{...SB_H,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(entries.map(toRow))});if(!res.ok)throw new Error("Save failed "+res.status);}
+async function sbDelete(id){await fetch(`${SB_URL}/rest/v1/intel_entries?id=eq.${encodeURIComponent(id)}`,{method:"DELETE",headers:SB_H});}
+async function analyzeScreenshot(b64,mime){
+  const sys=`You are a Vibe Intel analyst. Return ONLY valid JSON, no markdown fences:\n{"title":"Short punchy title max 8 words","category":"Tools"|"Prompts"|"Techniques"|"Inspo","summary":"2-3 sentence insight","actionSteps":["step1","step2","step3"],"tags":["t1","t2","t3","t4","t5"]}\nTools=apps/software, Prompts=prompt templates, Techniques=workflows/frameworks, Inspo=design/aesthetic`;
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:sys,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:mime,data:b64}},{type:"text",text:"Analyze this screenshot and return the JSON intel report."}]}]})});
+  const d=await res.json();return JSON.parse((d.content||[]).map(b=>b.text||"").join("").replace(/```json|```/g,"").trim());
+}
+async function queryBoard(question,items){
+  const ctx=items.map((item,i)=>`[${i+1}] ${item.category}: "${item.title}"\n${item.summary}\nSteps: ${(item.actionSteps||[]).join(" | ")}\nTags: ${(item.tags||[]).join(", ")}`).join("\n\n");
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,system:`You are a Vibe Intel board analyst. The user has ${items.length} saved entries. Answer based ONLY on what is in the board. Be direct, specific, reference actual entry titles. Suggest workflows and combinations where relevant.`,messages:[{role:"user",content:`BOARD:\n\n${ctx}\n\nQUESTION: ${question}`}]})});
+  const d=await res.json();return(d.content||[]).map(b=>b.text||"").join("");
+}
+const toB64=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
+function ago(ts){const m=Math.floor((Date.now()-ts)/60000);if(m<1)return"just now";if(m<60)return`${m}m ago`;const h=Math.floor(m/60);if(h<24)return`${h}h ago`;return`${Math.floor(h/24)}d ago`;}
+
+function App(){
+  const[items,setItems]=useState([]);const[filter,setFilter]=useState("All");const[search,setSearch]=useState("");
+  const[sel,setSel]=useState(null);const[err,setErr]=useState(null);const[ready,setReady]=useState(false);
+  const[prog,setProg]=useState("");const[uploading,setUploading]=useState(false);const[drag,setDrag]=useState(false);
+  const[queryOpen,setQueryOpen]=useState(false);const[queryText,setQueryText]=useState("");
+  const[queryAns,setQueryAns]=useState("");const[queryLoading,setQueryLoading]=useState(false);
+  const fileRef=useRef();const importRef=useRef();
+
+  useEffect(()=>{(async()=>{try{const e=await sbLoad();setItems(e);}catch(e){setErr("Database error: "+e.message);}setReady(true);})();},[]);
+  const addItem=useCallback(async item=>{setItems(p=>[item,...p]);try{await sbUpsert([item]);}catch(e){setErr("Save failed: "+e.message);}},[]);
+  const delItem=useCallback(async id=>{setItems(p=>p.filter(i=>i.id!==id));if(sel?.id===id)setSel(null);try{await sbDelete(id);}catch(e){setErr("Delete failed: "+e.message);}},[sel]);
+
+  const process=async file=>{
+    if(!file?.type.startsWith("image/")){setErr("Image files only.");return;}
+    setUploading(true);setErr(null);setProg("Reading image...");
+    try{const b64=await toB64(file);setProg("Analyzing with Claude vision...");const intel=await analyzeScreenshot(b64,file.type);setProg("Saving to database...");await addItem({id:uid(),timestamp:Date.now(),thumbnail:`data:${file.type};base64,${b64}`,...intel});}
+    catch(e){setErr("Analysis failed: "+e.message);}finally{setUploading(false);setProg("");}
+  };
+
+  const doExport=()=>{
+    const exp={exported:new Date().toISOString(),count:items.length,entries:items.map(({thumbnail,...r})=>r)};
+    const blob=new Blob([JSON.stringify(exp,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");
+    a.href=url;a.download=`vibe-intel-${Date.now()}.json`;a.click();URL.revokeObjectURL(url);
+  };
+
+  const doImport=async file=>{
+    if(!file)return;
+    try{
+      const data=JSON.parse(await file.text());const incoming=data.entries||[];
+      if(!incoming.length){setErr("No entries found.");return;}
+      const existingIds=new Set(items.map(i=>i.id));
+      const newOnes=incoming.filter(i=>!existingIds.has(i.id)).map(i=>({...i,thumbnail:makeThumb(i.category,i.title)}));
+      if(!newOnes.length){setErr("All entries already in board.");return;}
+      setProg(`Saving ${newOnes.length} entries to database...`);
+      await sbUpsert(newOnes);setItems(p=>[...newOnes,...p]);setProg("");
+    }catch(e){setErr("Import failed: "+e.message);setProg("");}
+  };
+
+  const doQuery=async()=>{
+    if(!queryText.trim()||queryLoading)return;setQueryLoading(true);setQueryAns("");
+    try{setQueryAns(await queryBoard(queryText,items));}catch(e){setQueryAns("Query failed: "+e.message);}finally{setQueryLoading(false);}
+  };
+
+  const visible=items.filter(item=>{if(filter!=="All"&&item.category!==filter)return false;const q=search.toLowerCase();return !q||[item.title,item.summary,...(item.tags||[])].some(s=>s?.toLowerCase().includes(q));});
+  const counts=CATS.slice(1).reduce((a,c)=>({...a,[c]:items.filter(i=>i.category===c).length}),{});
+  const sc=sel?CC[sel.category]||CC.Tools:null;
+  const QUICK=["what security prompts do I have?","best tools for saving tokens?","build me a Claude Code workflow","what should I implement first?","create a CLAUDE.md from my techniques"];
+
+  if(!ready)return(<div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"#0a0a0a",gap:16}}><div style={{width:24,height:24,border:"2px solid #222",borderTopColor:"#fbbf24",borderRadius:"50%",animation:"spin .8s linear infinite"}}/><span style={{color:"#fbbf24",fontSize:10,letterSpacing:4}}>CONNECTING TO DATABASE...</span></div>);
+
+  return(<div style={{minHeight:"100vh",background:"#0a0a0a",color:"#e0d5c0",fontFamily:"'Courier New',monospace"}}>
+    <div style={{position:"fixed",inset:0,pointerEvents:"none",background:"repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.1) 2px,rgba(0,0,0,.1) 4px)",zIndex:100}}/>
+    <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",borderBottom:"1px solid #1a1a1a",flexWrap:"wrap",gap:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:22,color:"#fbbf24"}}>◈</span>
+        <div><div style={{fontSize:16,fontWeight:700,letterSpacing:5,color:"#fbbf24"}}>VIBE INTEL</div><div style={{fontSize:7,letterSpacing:3,color:"#3a2e18",marginTop:1}}>{items.length} ENTRIES · SUPABASE CLOUD</div></div>
+      </div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+        {CATS.slice(1).map(c=>(<div key={c} style={{display:"flex",alignItems:"center",gap:4,padding:"2px 7px",border:`1px solid ${CC[c].border}`,fontSize:7,letterSpacing:2,color:CC[c].text}}><span style={{fontWeight:700}}>{counts[c]}</span><span style={{opacity:.7}}>{c}</span></div>))}
+        <button onClick={doExport} style={{background:"#1a1408",border:"1px solid #fbbf24",color:"#fbbf24",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"4px 9px"}}>↓ EXPORT</button>
+        <button onClick={()=>importRef.current?.click()} style={{background:"none",border:"1px solid #2a2018",color:"#4a4030",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"4px 9px"}}>↑ IMPORT</button>
+        <input ref={importRef} type="file" accept=".json" style={{display:"none"}} onChange={e=>{doImport(e.target.files[0]);e.target.value="";}}/>
+      </div>
+    </header>
+
+    {items.length===0&&!prog&&(<div style={{margin:"20px",padding:"24px",border:"1px dashed #2a2018",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
+      <span style={{fontSize:32,color:"#2a2018"}}>◈</span>
+      <div style={{color:"#5a4a20",fontSize:10,letterSpacing:3}}>INTEL BOARD EMPTY</div>
+      <div style={{color:"#3a3020",fontSize:9,lineHeight:1.7}}>Import your JSON backup or drop a screenshot below.</div>
+      <button onClick={()=>importRef.current?.click()} style={{background:"#1a1408",border:"1px solid #fbbf24",color:"#fbbf24",fontFamily:"'Courier New',monospace",fontSize:9,letterSpacing:3,padding:"10px 20px"}}>↑ IMPORT BACKUP JSON</button>
+    </div>)}
+
+    {items.length>0&&(<div style={{margin:"12px 20px 0"}}>
+      <button onClick={()=>{setQueryOpen(o=>!o);setQueryAns("");}} style={{width:"100%",background:queryOpen?"rgba(251,191,36,.06)":"transparent",border:`1px solid ${queryOpen?"#fbbf24":"#222"}`,color:queryOpen?"#fbbf24":"#4a3a20",padding:"9px 14px",fontFamily:"'Courier New',monospace",fontSize:8,letterSpacing:3,display:"flex",alignItems:"center",gap:8}}>
+        <span>◈</span><span>QUERY YOUR INTEL BOARD WITH AI</span><span style={{marginLeft:"auto"}}>{queryOpen?"▲":"▼"}</span>
+      </button>
+      {queryOpen&&(<div style={{border:"1px solid #1a1a1a",borderTop:"none",background:"#080808",padding:"12px"}}>
+        <div style={{display:"flex",gap:6,marginBottom:8}}>
+          <input value={queryText} onChange={e=>setQueryText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doQuery()} placeholder="e.g. build me a workflow using my security and CLI entries" style={{flex:1,background:"#0d0d0d",border:"1px solid #2a2a2a",outline:"none",color:"#e0d5c0",fontFamily:"'Courier New',monospace",fontSize:9,padding:"7px 9px"}}/>
+          <button onClick={doQuery} disabled={queryLoading||!queryText.trim()} style={{background:"#1a1408",border:"1px solid #fbbf24",color:"#fbbf24",fontFamily:"'Courier New',monospace",fontSize:8,padding:"7px 12px",opacity:queryLoading||!queryText.trim()?0.4:1}}>{queryLoading?"...":"ASK"}</button>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>{QUICK.map(q=>(<button key={q} onClick={()=>setQueryText(q)} style={{background:"none",border:"1px solid #1e1810",color:"#3a3020",fontFamily:"'Courier New',monospace",fontSize:7,padding:"2px 6px"}}>{q}</button>))}</div>
+        {queryLoading&&<div style={{color:"#fbbf24",fontSize:8,letterSpacing:3,padding:"8px 0"}}>ANALYZING {items.length} ENTRIES...</div>}
+        {queryAns&&!queryLoading&&(<div style={{borderTop:"1px solid #1a1a1a",paddingTop:10,marginTop:4}}>
+          <div style={{fontSize:7,letterSpacing:4,color:"#4a4030",marginBottom:6}}>◈ INTEL RESPONSE</div>
+          <div style={{fontSize:10,color:"#b0a070",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{queryAns}</div>
+          <button onClick={()=>{setQueryAns("");setQueryText("");}} style={{marginTop:8,background:"none",border:"1px solid #1a1a1a",color:"#3a3020",fontFamily:"'Courier New',monospace",fontSize:7,padding:"3px 7px"}}>CLEAR</button>
+        </div>)}
+      </div>)}
+    </div>)}
+
+    <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);if(e.dataTransfer.files[0])process(e.dataTransfer.files[0]);}} onClick={()=>!uploading&&fileRef.current?.click()} style={{margin:"12px 20px",border:`1px dashed ${drag?"#fbbf24":"#1e1e1e"}`,background:drag?"rgba(251,191,36,.03)":"transparent",padding:"16px",cursor:uploading?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",minHeight:66}}>
+      <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>e.target.files[0]&&process(e.target.files[0])}/>
+      {uploading||prog?<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}><div style={{width:18,height:18,border:"2px solid #222",borderTopColor:"#fbbf24",borderRadius:"50%",animation:"spin .8s linear infinite"}}/><span style={{fontSize:8,letterSpacing:3,color:"#fbbf24"}}>{prog||"PROCESSING..."}</span></div>:<div style={{textAlign:"center"}}><div style={{fontSize:18,color:"#fbbf24",marginBottom:4}}>⊕</div><div style={{fontSize:9,letterSpacing:2,color:"#5a5040"}}>UPLOAD SCREENSHOT → ANALYZE → SAVE TO CLOUD</div></div>}
+    </div>
+
+    {err&&<div style={{margin:"0 20px 8px",padding:"8px 12px",background:"#2e1a1a",border:"1px solid #f87171",color:"#f87171",fontSize:9,display:"flex",justifyContent:"space-between"}}><span>⚠ {err}</span><button onClick={()=>setErr(null)} style={{background:"none",border:"none",color:"#f87171"}}>✕</button></div>}
+
+    {items.length>0&&(<div style={{padding:"0 20px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",borderBottom:"1px solid #111"}}>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{CATS.map(c=>{const active=filter===c;return(<button key={c} onClick={()=>setFilter(c)} style={{background:active?"rgba(251,191,36,.07)":"none",border:`1px solid ${active?"#fbbf24":CC[c]?.border||"#222"}`,color:active?"#fbbf24":CC[c]?.text||"#4a4030",padding:"3px 8px",fontSize:7,letterSpacing:2,fontFamily:"'Courier New',monospace"}}>{c}{c!=="All"?` ${counts[c]}`:""}</button>);})}</div>
+      <div style={{flex:1,minWidth:150,display:"flex",alignItems:"center",border:"1px solid #1a1a1a",padding:"0 8px",gap:4}}>
+        <span style={{color:"#3a3020",fontSize:12}}>⌕</span>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="SEARCH INTEL..." style={{flex:1,background:"none",border:"none",outline:"none",color:"#e0d5c0",fontFamily:"'Courier New',monospace",fontSize:8,letterSpacing:1,padding:"6px 0"}}/>
+        {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",color:"#3a3020",fontSize:9}}>✕</button>}
+      </div>
+    </div>)}
+
+    <div style={{display:"flex",minHeight:"calc(100vh - 300px)"}}>
+      <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:1,padding:1,background:"#0f0f0f",alignContent:"start"}}>
+        {visible.length===0&&items.length>0&&<div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",gap:10}}><span style={{fontSize:28,color:"#1e1e1e"}}>◈</span><span style={{fontSize:9,letterSpacing:3,color:"#2a2a2a"}}>NO INTEL FOUND</span></div>}
+        {visible.map(item=>{const c=CC[item.category]||CC.Tools;const active=sel?.id===item.id;return(
+          <div key={item.id} onClick={()=>setSel(active?null:item)} style={{background:active?"#100e08":"#0d0d0d",border:`1px solid ${active?c.border:"#1a1a1a"}`,cursor:"pointer",display:"flex",flexDirection:"column"}}>
+            <div style={{position:"relative",aspectRatio:"16/9",overflow:"hidden",background:"#0d0d0d"}}>
+              <img src={item.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(.85) saturate(.8)"}}/>
+              <div style={{position:"absolute",top:6,left:6,fontSize:7,letterSpacing:2,padding:"2px 5px",border:`1px solid ${c.border}`,background:c.bg,color:c.text}}>{item.category}</div>
+            </div>
+            <div style={{padding:"9px 11px",flex:1,display:"flex",flexDirection:"column",gap:6}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#e0d5c0",lineHeight:1.3}}>{item.title}</div>
+              <div style={{fontSize:8,color:"#4a4030",lineHeight:1.6,flex:1}}>{item.summary}</div>
+              <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{(item.tags||[]).slice(0,4).map(t=><span key={t} style={{fontSize:6,letterSpacing:1,color:"#2a2018",border:"1px solid #1a1010",padding:"1px 4px"}}>{t}</span>)}</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:6,color:"#2a2018",letterSpacing:1}}>{ago(item.timestamp)}</span>
+                <button onClick={e=>{e.stopPropagation();delItem(item.id);}} style={{background:"none",border:"none",color:"#2a2018",fontSize:9,fontFamily:"'Courier New',monospace"}}>✕</button>
+              </div>
+            </div>
+          </div>);})}
+      </div>
+      {sel&&sc&&(<div style={{width:290,borderLeft:"1px solid #111",padding:16,background:"#080808",overflowY:"auto",display:"flex",flexDirection:"column",gap:12,maxHeight:"calc(100vh - 300px)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontSize:7,letterSpacing:4,fontWeight:700,color:sc.text}}>{sel.category?.toUpperCase()}</span>
+          <button onClick={()=>setSel(null)} style={{background:"none",border:"1px solid #1a1a1a",color:"#4a4030",fontSize:9,width:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Courier New',monospace"}}>✕</button>
+        </div>
+        <img src={sel.thumbnail} alt="" style={{width:"100%",aspectRatio:"16/9",objectFit:"cover",border:`1px solid ${sc.border}33`}}/>
+        <div style={{fontSize:12,fontWeight:700,color:sc.text,lineHeight:1.3}}>{sel.title}</div>
+        <div><div style={{fontSize:7,letterSpacing:4,color:"#3a3020",borderBottom:"1px solid #111",paddingBottom:4,marginBottom:6}}>◈ SUMMARY</div><div style={{fontSize:9,color:"#7a7060",lineHeight:1.7}}>{sel.summary}</div></div>
+        <div><div style={{fontSize:7,letterSpacing:4,color:"#3a3020",borderBottom:"1px solid #111",paddingBottom:4,marginBottom:6}}>✦ ACTION STEPS</div>
+          <ol style={{margin:0,padding:0,listStyle:"none",display:"flex",flexDirection:"column",gap:7}}>{(sel.actionSteps||[]).map((s,i)=>(<li key={i} style={{display:"flex",gap:7,fontSize:8,color:"#9a8860",lineHeight:1.5}}><span style={{color:sc.text,fontWeight:700,minWidth:14,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span><span>{s}</span></li>))}</ol>
+        </div>
+        <div><div style={{fontSize:7,letterSpacing:4,color:"#3a3020",borderBottom:"1px solid #111",paddingBottom:4,marginBottom:6}}>⊕ TAGS</div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{(sel.tags||[]).map(t=>(<span key={t} onClick={()=>{setSearch(t);setSel(null);}} style={{fontSize:7,letterSpacing:1,color:"#3a3020",border:"1px solid #1a1010",padding:"2px 6px",cursor:"pointer"}}>#{t}</span>))}</div>
+        </div>
+        <div style={{fontSize:6,letterSpacing:2,color:"#1a1010",marginTop:"auto"}}>LOGGED {new Date(sel.timestamp).toLocaleString().toUpperCase()}</div>
+      </div>)}
+    </div>
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
