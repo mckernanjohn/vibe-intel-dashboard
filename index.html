@@ -3,76 +3,96 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Vibe Intel Dashboard</title>
+<title>Vibe Intel</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet"/>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0a0a0a;color:#e0d5c0;font-family:'Courier New',monospace}
+:root{
+  --bg:#06070f;--surface:#0b0c18;--card:#0e0f1e;--border:#1a1c2e;--border-hi:#2a2d48;
+  --text:#e2e2ee;--text2:#5e6080;--text3:#252840;
+  --gold:#c8a84a;--gold-dim:rgba(200,168,74,0.08);--gold-border:rgba(200,168,74,0.18);
+}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;font-size:14px;}
 @keyframes spin{to{transform:rotate(360deg)}}
-button:hover{opacity:.75;cursor:pointer}
-.art-input{width:100%;background:#0d0d0d;border:1px solid #2a2a2a;outline:none;color:#e0d5c0;font-family:'Courier New',monospace;font-size:9px;padding:8px;resize:vertical;}
-.art-input:focus{border-color:#fbbf24;}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+button{font-family:'DM Sans',system-ui,sans-serif;cursor:pointer;transition:all 0.15s ease;}
+input,textarea{font-family:'DM Sans',system-ui,sans-serif;}
+.grid-bg{position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,0.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.018) 1px,transparent 1px);background-size:48px 48px;z-index:0;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:2px;transition:border-color 0.2s,box-shadow 0.2s;cursor:pointer;display:flex;flex-direction:column;overflow:hidden;animation:rise 0.3s ease;}
+.card:hover{border-color:var(--border-hi);box-shadow:0 8px 32px rgba(0,0,0,0.4);}
+.btn{border-radius:2px;font-size:12px;font-weight:500;letter-spacing:0.04em;transition:all 0.15s;border:1px solid;}
+.btn-gold{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold);padding:7px 18px;}
+.btn-gold:hover{background:rgba(200,168,74,0.14);border-color:rgba(200,168,74,0.35);}
+.btn-ghost{background:transparent;border-color:var(--border);color:var(--text2);padding:7px 14px;}
+.btn-ghost:hover{border-color:var(--border-hi);color:var(--text);}
+.btn-mode{background:transparent;border-color:var(--border);color:var(--text2);padding:6px 18px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;}
+.btn-mode.active{background:var(--gold-dim);border-color:var(--gold-border);color:var(--gold);}
+.btn-success{background:rgba(74,222,128,0.07);border-color:rgba(74,222,128,0.2);color:#4ade80;padding:7px 18px;}
+.art-input{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:13px;padding:11px 14px;resize:vertical;outline:none;border-radius:2px;transition:border-color 0.15s;}
+.art-input:focus{border-color:var(--gold-border);}
+.art-input::placeholder{color:var(--text3);}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+.tag{font-size:10px;letter-spacing:0.04em;color:var(--text2);background:var(--surface);border:1px solid var(--border);padding:2px 8px;border-radius:2px;}
+.tag:hover{border-color:var(--border-hi);color:var(--text);cursor:pointer;}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useRef,useCallback} = React;
+const {useState,useEffect,useRef,useCallback}=React;
 const SB_URL="https://icchqhpqgfqgyjeasotc.supabase.co";
 const SB_KEY="sb_publishable_aj7sDY-054gHKFs5aTqiMQ_DrOMZgsK";
 const SB_H={"apikey":SB_KEY,"Authorization":`Bearer ${SB_KEY}`,"Content-Type":"application/json"};
-const CC={Tools:{bg:"#1a2e1a",border:"#4ade80",text:"#4ade80"},Prompts:{bg:"#1e1a2e",border:"#a78bfa",text:"#a78bfa"},Techniques:{bg:"#2e1a1a",border:"#f87171",text:"#f87171"},Inspo:{bg:"#2e2a1a",border:"#fbbf24",text:"#fbbf24"}};
+const CC={
+  Tools:{bg:"rgba(79,142,247,0.07)",border:"#4f8ef7",text:"#4f8ef7"},
+  Prompts:{bg:"rgba(155,126,250,0.07)",border:"#9b7efa",text:"#9b7efa"},
+  Techniques:{bg:"rgba(250,112,112,0.07)",border:"#fa7070",text:"#fa7070"},
+  Inspo:{bg:"rgba(245,200,66,0.07)",border:"#f5c842",text:"#f5c842"}
+};
 const CATS=["All","Tools","Prompts","Techniques","Inspo"];
 
 function makeThumb(cat,label){
   const c=CC[cat]||CC.Tools;
-  const t=((label||"").substring(0,22).toUpperCase()).replace(/[^A-Z0-9 ]/g,"");
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="225"><rect width="400" height="225" fill="#0d0d0d"/><rect width="400" height="225" fill="${c.bg}" opacity="0.6"/><rect y="0" width="400" height="2" fill="${c.border}" opacity="0.4"/><rect y="223" width="400" height="2" fill="${c.border}" opacity="0.4"/><text x="200" y="108" font-family="monospace" font-size="11" fill="${c.border}" text-anchor="middle" opacity="0.5" letter-spacing="3">${(cat||"").toUpperCase()}</text><text x="200" y="130" font-family="monospace" font-size="8" fill="${c.text}" text-anchor="middle" opacity="0.4" letter-spacing="2">${t}</text></svg>`;
-  try{return "data:image/svg+xml;base64,"+btoa(svg);}
-  catch(_){return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);}
+  const t=((label||"").substring(0,30).toUpperCase()).replace(/[^A-Z0-9 ]/g,"");
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="225"><rect width="400" height="225" fill="#090a15"/><rect x="0" y="0" width="2" height="225" fill="${c.border}" opacity="0.7"/><rect x="0" y="0" width="400" height="225" fill="${c.border}" opacity="0.03"/><text x="20" y="115" font-family="monospace" font-size="10" fill="${c.border}" opacity="0.35" letter-spacing="4">${(cat||"").toUpperCase()}</text><text x="20" y="134" font-family="monospace" font-size="8" fill="${c.text}" opacity="0.2" letter-spacing="2">${t}</text></svg>`;
+  try{return "data:image/svg+xml;base64,"+btoa(svg);}catch(_){return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);}
 }
 function toRow(e){return{id:e.id,category:e.category,title:e.title,summary:e.summary,action_steps:e.actionSteps||[],tags:e.tags||[],thumbnail:e.thumbnail||"",timestamp:e.timestamp||Date.now()};}
 function fromRow(r){return{id:r.id,category:r.category,title:r.title,summary:r.summary,actionSteps:r.action_steps||[],tags:r.tags||[],thumbnail:r.thumbnail||makeThumb(r.category,r.title),timestamp:r.timestamp||Date.now()};}
 async function sbLoad(){const res=await fetch(`${SB_URL}/rest/v1/intel_entries?order=timestamp.desc&limit=500`,{headers:SB_H});if(!res.ok)throw new Error("Load failed "+res.status);return(await res.json()).map(fromRow);}
 async function sbUpsert(entries){const res=await fetch(`${SB_URL}/rest/v1/intel_entries`,{method:"POST",headers:{...SB_H,"Prefer":"resolution=merge-duplicates"},body:JSON.stringify(entries.map(toRow))});if(!res.ok)throw new Error("Save failed "+res.status);}
 async function sbDelete(id){await fetch(`${SB_URL}/rest/v1/intel_entries?id=eq.${encodeURIComponent(id)}`,{method:"DELETE",headers:SB_H});}
-
-async function callApi(body){
-  const res=await fetch("/api/anthropic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  return res.json();
-}
-
+async function callApi(body){const res=await fetch("/api/anthropic",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});return res.json();}
 async function analyzeScreenshot(b64,mime){
   const sys=`You are a Vibe Intel analyst. Return ONLY valid JSON, no markdown fences:\n{"title":"Short punchy title max 8 words","category":"Tools"|"Prompts"|"Techniques"|"Inspo","summary":"2-3 sentence insight","actionSteps":["step1","step2","step3"],"tags":["t1","t2","t3","t4","t5"]}\nTools=apps/software, Prompts=prompt templates, Techniques=workflows/frameworks, Inspo=design/aesthetic`;
   const d=await callApi({model:"claude-sonnet-4-5",max_tokens:1000,system:sys,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:mime,data:b64}},{type:"text",text:"Analyze this screenshot and return the JSON intel report."}]}]});
   return JSON.parse((d.content||[]).map(b=>b.text||"").join("").replace(/```json|```/g,"").trim());
 }
-
 async function analyzeArticleUrl(url){
   const sys=`You are a Vibe Intel analyst. Search for and read the article at the URL provided, then return ONLY valid JSON, no markdown:\n{"title":"Short punchy title max 8 words","category":"Tools"|"Prompts"|"Techniques"|"Inspo","summary":"2-3 sentence insight","actionSteps":["step1","step2","step3"],"tags":["t1","t2","t3","t4","t5"]}\nTools=apps/software/AI tools, Prompts=prompt templates, Techniques=workflows/frameworks, Inspo=design/ideas`;
   const d=await callApi({model:"claude-sonnet-4-5",max_tokens:1500,tools:[{type:"web_search_20250305",name:"web_search"}],system:sys,messages:[{role:"user",content:`Read and analyze this article for my knowledge board: ${url}`}]});
   const text=(d.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
   return JSON.parse(text.replace(/```json|```/g,"").trim());
 }
-
 async function analyzeArticleText(content){
   const sys=`You are a Vibe Intel analyst. Analyze the provided article text and return ONLY valid JSON, no markdown:\n{"title":"Short punchy title max 8 words","category":"Tools"|"Prompts"|"Techniques"|"Inspo","summary":"2-3 sentence insight","actionSteps":["step1","step2","step3"],"tags":["t1","t2","t3","t4","t5"]}\nTools=apps/software/AI tools, Prompts=prompt templates, Techniques=workflows/frameworks, Inspo=design/ideas`;
   const d=await callApi({model:"claude-sonnet-4-5",max_tokens:1500,system:sys,messages:[{role:"user",content:`Analyze this for my knowledge board:\n\n${content.slice(0,8000)}`}]});
   const raw=(d.content||[]).map(b=>b.text||"").join("");
   return JSON.parse(raw.replace(/```json|```/g,"").trim());
 }
-
 async function queryBoard(question,items){
   const ctx=items.map((item,i)=>`[${i+1}] ${item.category}: "${item.title}"\n${item.summary}\nSteps: ${(item.actionSteps||[]).join(" | ")}\nTags: ${(item.tags||[]).join(", ")}`).join("\n\n");
   const d=await callApi({model:"claude-sonnet-4-5",max_tokens:1500,system:`You are a Vibe Intel board analyst. The user has ${items.length} saved entries. Answer based ONLY on what is in the board. Be direct, specific, reference actual entry titles. Suggest workflows and combinations where relevant.`,messages:[{role:"user",content:`BOARD:\n\n${ctx}\n\nQUESTION: ${question}`}]});
   return(d.content||[]).map(b=>b.text||"").join("");
 }
-
 const toB64=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(f);});
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 function ago(ts){const m=Math.floor((Date.now()-ts)/60000);if(m<1)return"just now";if(m<60)return`${m}m ago`;const h=Math.floor(m/60);if(h<24)return`${h}h ago`;return`${Math.floor(h/24)}d ago`;}
+
+function CatDot({cat,size=7}){const c=CC[cat]||CC.Tools;return <span style={{display:"inline-block",width:size,height:size,borderRadius:"50%",background:c.border,flexShrink:0}}/>;}
 
 function App(){
   const[items,setItems]=useState([]);const[filter,setFilter]=useState("All");const[search,setSearch]=useState("");
@@ -93,17 +113,15 @@ function App(){
   const process=async file=>{
     if(!file?.type.startsWith("image/")){setErr("Image files only.");return;}
     setUploading(true);setErr(null);setProg("Reading image...");
-    try{const b64=await toB64(file);setProg("Analyzing with Claude vision...");const intel=await analyzeScreenshot(b64,file.type);setProg("Saving to database...");await addItem({id:uid(),timestamp:Date.now(),thumbnail:`data:${file.type};base64,${b64}`,...intel});}
+    try{const b64=await toB64(file);setProg("Analyzing with Claude...");const intel=await analyzeScreenshot(b64,file.type);setProg("Saving...");await addItem({id:uid(),timestamp:Date.now(),thumbnail:`data:${file.type};base64,${b64}`,...intel});}
     catch(e){setErr("Analysis failed: "+e.message);}finally{setUploading(false);setProg("");}
   };
-
   const doExport=()=>{
     const exp={exported:new Date().toISOString(),count:items.length,entries:items.map(({thumbnail,...r})=>r)};
     const blob=new Blob([JSON.stringify(exp,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);const a=document.createElement("a");
     a.href=url;a.download=`vibe-intel-${Date.now()}.json`;a.click();URL.revokeObjectURL(url);
   };
-
   const doImport=async file=>{
     if(!file)return;
     try{
@@ -112,21 +130,18 @@ function App(){
       const existingIds=new Set(items.map(i=>i.id));
       const newOnes=incoming.filter(i=>!existingIds.has(i.id)).map(i=>({...i,thumbnail:makeThumb(i.category,i.title)}));
       if(!newOnes.length){setErr("All entries already in board.");return;}
-      setProg(`Saving ${newOnes.length} entries to database...`);
+      setProg(`Saving ${newOnes.length} entries...`);
       await sbUpsert(newOnes);setItems(p=>[...newOnes,...p]);setProg("");
     }catch(e){setErr("Import failed: "+e.message);setProg("");}
   };
-
   const doQuery=async()=>{
     if(!queryText.trim()||queryLoading)return;setQueryLoading(true);setQueryAns("");
     try{setQueryAns(await queryBoard(queryText,items));}catch(e){setQueryAns("Query failed: "+e.message);}finally{setQueryLoading(false);}
   };
-
   const addBulkFiles=files=>{
     const imgs=Array.from(files).filter(f=>f.type.startsWith('image/'));
     setBulkQueue(p=>[...p,...imgs.map(f=>({id:uid(),file:f,name:f.name,status:'queued',result:null,preview:URL.createObjectURL(f)}))]);
   };
-
   const runBulk=async()=>{
     const snap=bulkQueue.filter(i=>i.status==='queued');
     if(!snap.length)return;
@@ -138,13 +153,10 @@ function App(){
         const intel=await analyzeScreenshot(b64,item.file.type);
         await addItem({id:item.id,timestamp:Date.now(),thumbnail:`data:${item.file.type};base64,${b64}`,...intel});
         setBulkQueue(p=>p.map(i=>i.id===item.id?{...i,status:'done',result:intel}:i));
-      }catch(e){
-        setBulkQueue(p=>p.map(i=>i.id===item.id?{...i,status:'error'}:i));
-      }
+      }catch(e){setBulkQueue(p=>p.map(i=>i.id===item.id?{...i,status:'error'}:i));}
     }
     setBulkProcessing(false);
   };
-
   const runArticle=async()=>{
     if(artAnalyzing)return;
     setArtAnalyzing(true);setArtPreview(null);setErr(null);
@@ -154,7 +166,6 @@ function App(){
     }catch(e){setErr('Article analysis failed: '+e.message);}
     setArtAnalyzing(false);
   };
-
   const saveArticle=async()=>{
     if(!artPreview)return;
     await addItem({id:uid(),timestamp:Date.now(),thumbnail:makeThumb(artPreview.category,artPreview.title),...artPreview});
@@ -166,179 +177,337 @@ function App(){
   const sc=sel?CC[sel.category]||CC.Tools:null;
   const QUICK=["what security prompts do I have?","best tools for saving tokens?","build me a Claude Code workflow","what should I implement first?","create a CLAUDE.md from my techniques"];
 
-  if(!ready)return(<div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"#0a0a0a",gap:16}}><div style={{width:24,height:24,border:"2px solid #222",borderTopColor:"#fbbf24",borderRadius:"50%",animation:"spin .8s linear infinite"}}/><span style={{color:"#fbbf24",fontSize:10,letterSpacing:4}}>CONNECTING TO DATABASE...</span></div>);
+  if(!ready)return(
+    <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--bg)",gap:16}}>
+      <div className="spinner" style={{width:28,height:28}}/>
+      <span style={{fontSize:11,letterSpacing:"0.15em",color:"var(--text2)",fontFamily:"'Syne',sans-serif"}}>CONNECTING</span>
+    </div>
+  );
 
-  return(<div style={{minHeight:"100vh",background:"#0a0a0a",color:"#e0d5c0",fontFamily:"'Courier New',monospace"}}>
-    <div style={{position:"fixed",inset:0,pointerEvents:"none",background:"repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.1) 2px,rgba(0,0,0,.1) 4px)",zIndex:100}}/>
-
-    <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",borderBottom:"1px solid #1a1a1a",flexWrap:"wrap",gap:10}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontSize:22,color:"#fbbf24"}}>◈</span>
-        <div><div style={{fontSize:16,fontWeight:700,letterSpacing:5,color:"#fbbf24"}}>VIBE INTEL</div><div style={{fontSize:7,letterSpacing:3,color:"#3a2e18",marginTop:1}}>{items.length} ENTRIES · SUPABASE CLOUD</div></div>
+  return(
+  <div style={{minHeight:"100vh",background:"var(--bg)",position:"relative"}}>
+    <div className="grid-bg"/>
+    
+    {/* HEADER */}
+    <header style={{position:"sticky",top:0,zIndex:50,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 28px",borderBottom:"1px solid var(--border)",background:"rgba(6,7,15,0.92)",backdropFilter:"blur(16px)",flexWrap:"wrap",gap:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:14}}>
+        <div style={{position:"relative"}}>
+          <div style={{width:9,height:9,background:"var(--gold)",borderRadius:"50%"}}/>
+          <div style={{position:"absolute",inset:-3,borderRadius:"50%",background:"var(--gold)",opacity:0.15,animation:"spin 3s linear infinite"}}/>
+        </div>
+        <div>
+          <div style={{fontSize:17,fontWeight:700,letterSpacing:"0.18em",color:"var(--gold)",fontFamily:"'Syne',sans-serif",lineHeight:1}}>VIBE INTEL</div>
+          <div style={{fontSize:10,color:"var(--text2)",letterSpacing:"0.08em",marginTop:3}}>{items.length} entries · cloud synced</div>
+        </div>
       </div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-        {CATS.slice(1).map(c=>(<div key={c} style={{display:"flex",alignItems:"center",gap:4,padding:"2px 7px",border:`1px solid ${CC[c].border}`,fontSize:7,letterSpacing:2,color:CC[c].text}}><span style={{fontWeight:700}}>{counts[c]}</span><span style={{opacity:.7}}>{c}</span></div>))}
-        <button onClick={doExport} style={{background:"#1a1408",border:"1px solid #fbbf24",color:"#fbbf24",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"4px 9px"}}>↓ EXPORT</button>
-        <button onClick={()=>importRef.current?.click()} style={{background:"none",border:"1px solid #2a2018",color:"#4a4030",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"4px 9px"}}>↑ IMPORT</button>
-        <input ref={importRef} type="file" accept=".json" style={{display:"none"}} onChange={e=>{doImport(e.target.files[0]);e.target.value="";}}/>
+      <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:16,alignItems:"center"}}>
+          {CATS.slice(1).map(c=>(
+            <div key={c} style={{display:"flex",alignItems:"center",gap:6}}>
+              <CatDot cat={c} size={6}/>
+              <span style={{fontSize:12,color:"var(--text2)"}}>{counts[c]}</span>
+              <span style={{fontSize:11,color:"var(--text3)",letterSpacing:"0.04em"}}>{c}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{width:1,height:18,background:"var(--border)"}}/>
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn btn-gold" onClick={doExport}>↓ Export</button>
+          <button className="btn btn-ghost" onClick={()=>importRef.current?.click()}>↑ Import</button>
+          <input ref={importRef} type="file" accept=".json" style={{display:"none"}} onChange={e=>{doImport(e.target.files[0]);e.target.value="";}}/>
+        </div>
       </div>
     </header>
 
-    {items.length===0&&!prog&&(<div style={{margin:"20px",padding:"24px",border:"1px dashed #2a2018",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
-      <span style={{fontSize:32,color:"#2a2018"}}>◈</span>
-      <div style={{color:"#5a4a20",fontSize:10,letterSpacing:3}}>INTEL BOARD EMPTY</div>
-      <div style={{color:"#3a3020",fontSize:9,lineHeight:1.7}}>Import your JSON backup or drop a screenshot below.</div>
-      <button onClick={()=>importRef.current?.click()} style={{background:"#1a1408",border:"1px solid #fbbf24",color:"#fbbf24",fontFamily:"'Courier New',monospace",fontSize:9,letterSpacing:3,padding:"10px 20px"}}>↑ IMPORT BACKUP JSON</button>
-    </div>)}
+    <div style={{position:"relative",zIndex:1}}>
 
-    {items.length>0&&(<div style={{margin:"12px 20px 0"}}>
-      <button onClick={()=>{setQueryOpen(o=>!o);setQueryAns("");}} style={{width:"100%",background:queryOpen?"rgba(251,191,36,.06)":"transparent",border:`1px solid ${queryOpen?"#fbbf24":"#222"}`,color:queryOpen?"#fbbf24":"#4a3a20",padding:"9px 14px",fontFamily:"'Courier New',monospace",fontSize:8,letterSpacing:3,display:"flex",alignItems:"center",gap:8}}>
-        <span>◈</span><span>QUERY YOUR INTEL BOARD WITH AI</span><span style={{marginLeft:"auto"}}>{queryOpen?"▲":"▼"}</span>
-      </button>
-      {queryOpen&&(<div style={{border:"1px solid #1a1a1a",borderTop:"none",background:"#080808",padding:"12px"}}>
-        <div style={{display:"flex",gap:6,marginBottom:8}}>
-          <input value={queryText} onChange={e=>setQueryText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doQuery()} placeholder="e.g. build me a workflow using my security and CLI entries" style={{flex:1,background:"#0d0d0d",border:"1px solid #2a2a2a",outline:"none",color:"#e0d5c0",fontFamily:"'Courier New',monospace",fontSize:9,padding:"7px 9px"}}/>
-          <button onClick={doQuery} disabled={queryLoading||!queryText.trim()} style={{background:"#1a1408",border:"1px solid #fbbf24",color:"#fbbf24",fontFamily:"'Courier New',monospace",fontSize:8,padding:"7px 12px",opacity:queryLoading||!queryText.trim()?0.4:1}}>{queryLoading?"...":"ASK"}</button>
+    {/* EMPTY STATE */}
+    {items.length===0&&!prog&&(
+      <div style={{margin:"40px 28px",padding:"48px",border:"1px dashed var(--border)",borderRadius:2,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
+        <div style={{width:48,height:48,borderRadius:"50%",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:"var(--gold)",opacity:0.5}}/>
         </div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>{QUICK.map(q=>(<button key={q} onClick={()=>setQueryText(q)} style={{background:"none",border:"1px solid #1e1810",color:"#3a3020",fontFamily:"'Courier New',monospace",fontSize:7,padding:"2px 6px"}}>{q}</button>))}</div>
-        {queryLoading&&<div style={{color:"#fbbf24",fontSize:8,letterSpacing:3,padding:"8px 0"}}>ANALYZING {items.length} ENTRIES...</div>}
-        {queryAns&&!queryLoading&&(<div style={{borderTop:"1px solid #1a1a1a",paddingTop:10,marginTop:4}}>
-          <div style={{fontSize:7,letterSpacing:4,color:"#4a4030",marginBottom:6}}>◈ INTEL RESPONSE</div>
-          <div style={{fontSize:10,color:"#b0a070",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{queryAns}</div>
-          <button onClick={()=>{setQueryAns("");setQueryText("");}} style={{marginTop:8,background:"none",border:"1px solid #1a1a1a",color:"#3a3020",fontFamily:"'Courier New',monospace",fontSize:7,padding:"3px 7px"}}>CLEAR</button>
-        </div>)}
-      </div>)}
-    </div>)}
-
-    {/* Mode switcher */}
-    <div style={{margin:"12px 20px 0",display:"flex",gap:4}}>
-      {['SCREENSHOT','BULK','ARTICLE'].map(m=>(
-        <button key={m} onClick={()=>{setUploadMode(m);setArtPreview(null);setErr(null);}} style={{background:uploadMode===m?"rgba(251,191,36,.07)":"none",border:`1px solid ${uploadMode===m?"#fbbf24":"#1e1e1e"}`,color:uploadMode===m?"#fbbf24":"#3a3020",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"4px 10px"}}>{m}</button>
-      ))}
-    </div>
-
-    {/* SCREENSHOT — single */}
-    {uploadMode==='SCREENSHOT'&&(
-      <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);if(e.dataTransfer.files[0])process(e.dataTransfer.files[0]);}} onClick={()=>!uploading&&fileRef.current?.click()} style={{margin:"8px 20px",border:`1px dashed ${drag?"#fbbf24":"#1e1e1e"}`,background:drag?"rgba(251,191,36,.03)":"transparent",padding:"16px",cursor:uploading?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",minHeight:66}}>
-        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>e.target.files[0]&&process(e.target.files[0])}/>
-        {uploading||prog?(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}><div style={{width:18,height:18,border:"2px solid #222",borderTopColor:"#fbbf24",borderRadius:"50%",animation:"spin .8s linear infinite"}}/><span style={{fontSize:8,letterSpacing:3,color:"#fbbf24"}}>{prog||"PROCESSING..."}</span></div>):(<div style={{textAlign:"center"}}><div style={{fontSize:18,color:"#fbbf24",marginBottom:4}}>⊕</div><div style={{fontSize:9,letterSpacing:2,color:"#5a5040"}}>UPLOAD SCREENSHOT → ANALYZE → SAVE TO CLOUD</div></div>)}
+        <div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:600,letterSpacing:"0.1em",color:"var(--text2)",marginBottom:8}}>BOARD EMPTY</div>
+          <div style={{fontSize:13,color:"var(--text3)",lineHeight:1.6}}>Import your JSON backup or add your first entry below</div>
+        </div>
+        <button className="btn btn-gold" onClick={()=>importRef.current?.click()} style={{padding:"10px 28px",fontSize:13}}>↑ Import Backup</button>
       </div>
     )}
 
-    {/* BULK — multi-file queue */}
-    {uploadMode==='BULK'&&(<div style={{margin:"8px 20px"}}>
-      <div onDragOver={e=>{e.preventDefault();setBulkDrag(true);}} onDragLeave={()=>setBulkDrag(false)} onDrop={e=>{e.preventDefault();setBulkDrag(false);addBulkFiles(e.dataTransfer.files);}} onClick={()=>bulkFileRef.current?.click()} style={{border:`1px dashed ${bulkDrag?"#fbbf24":"#1e1e1e"}`,background:bulkDrag?"rgba(251,191,36,.03)":"transparent",padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",minHeight:58,marginBottom:8}}>
-        <input ref={bulkFileRef} type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>addBulkFiles(e.target.files)}/>
-        <div style={{textAlign:"center"}}><div style={{fontSize:16,color:"#fbbf24",marginBottom:3}}>⊕⊕</div><div style={{fontSize:8,letterSpacing:2,color:"#5a5040"}}>DROP MULTIPLE SCREENSHOTS · ANALYZED IN QUEUE</div></div>
+    {/* AI QUERY */}
+    {items.length>0&&(
+      <div style={{margin:"20px 28px 0"}}>
+        <button onClick={()=>{setQueryOpen(o=>!o);setQueryAns("");}} style={{width:"100%",background:queryOpen?"rgba(200,168,74,0.05)":"transparent",border:"1px solid",borderColor:queryOpen?"var(--gold-border)":"var(--border)",borderRadius:2,color:queryOpen?"var(--gold)":"var(--text2)",padding:"11px 18px",fontSize:12,letterSpacing:"0.08em",display:"flex",alignItems:"center",gap:10,textTransform:"uppercase",fontFamily:"'Syne',sans-serif",fontWeight:600}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:queryOpen?"var(--gold)":"var(--text3)"}}/>
+          <span>Query intel board with AI</span>
+          <span style={{marginLeft:"auto",fontSize:10,opacity:0.6}}>{queryOpen?"▲":"▼"}</span>
+        </button>
+        {queryOpen&&(
+          <div style={{border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 2px 2px",background:"rgba(11,12,24,0.8)",padding:"16px"}}>
+            <div style={{display:"flex",gap:8,marginBottom:10}}>
+              <input value={queryText} onChange={e=>setQueryText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doQuery()} placeholder="Ask anything about your saved intel..." style={{flex:1,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:2,color:"var(--text)",fontSize:13,padding:"9px 14px",outline:"none"}}/>
+              <button className="btn btn-gold" onClick={doQuery} disabled={queryLoading||!queryText.trim()} style={{opacity:queryLoading||!queryText.trim()?0.4:1,padding:"9px 20px",fontSize:12}}>
+                {queryLoading?<span className="spinner"/>:"Ask"}
+              </button>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+              {QUICK.map(q=>(<button key={q} onClick={()=>setQueryText(q)} style={{background:"transparent",border:"1px solid var(--border)",borderRadius:2,color:"var(--text3)",fontSize:11,padding:"4px 10px",letterSpacing:"0.02em"}}>{q}</button>))}
+            </div>
+            {queryLoading&&<div style={{color:"var(--text2)",fontSize:12,letterSpacing:"0.06em",padding:"8px 0",display:"flex",alignItems:"center",gap:8}}><span className="spinner" style={{width:12,height:12}}/> Analyzing {items.length} entries...</div>}
+            {queryAns&&!queryLoading&&(
+              <div style={{borderTop:"1px solid var(--border)",paddingTop:14,marginTop:4}}>
+                <div style={{fontSize:10,letterSpacing:"0.1em",color:"var(--text3)",marginBottom:10,textTransform:"uppercase",fontFamily:"'Syne',sans-serif"}}>Intel Response</div>
+                <div style={{fontSize:13,color:"#a0a0c0",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{queryAns}</div>
+                <button onClick={()=>{setQueryAns("");setQueryText("");}} className="btn btn-ghost" style={{marginTop:12,fontSize:11}}>Clear</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      {bulkQueue.length>0&&(<div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-          <span style={{fontSize:7,letterSpacing:3,color:"#4a4030"}}>{bulkQueue.length} QUEUED · {bulkQueue.filter(i=>i.status==='done').length} SAVED</span>
-          <div style={{display:"flex",gap:6,alignItems:"center"}}>
-            {!bulkProcessing&&bulkQueue.some(i=>i.status==='queued')&&(<button onClick={runBulk} style={{background:"#1a1408",border:"1px solid #fbbf24",color:"#fbbf24",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"3px 9px"}}>▶ ANALYZE ALL</button>)}
-            {bulkProcessing&&(<span style={{fontSize:7,letterSpacing:3,color:"#fbbf24"}}>ANALYZING...</span>)}
-            <button onClick={()=>setBulkQueue([])} style={{background:"none",border:"1px solid #1e1e1e",color:"#3a3020",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"3px 7px"}}>CLEAR</button>
+    )}
+
+    {/* MODE SWITCHER */}
+    <div style={{margin:"16px 28px 0",display:"flex",gap:6}}>
+      {['SCREENSHOT','BULK','ARTICLE'].map(m=>(
+        <button key={m} className={`btn btn-mode${uploadMode===m?' active':''}`} onClick={()=>{setUploadMode(m);setArtPreview(null);setErr(null);}}>{m}</button>
+      ))}
+    </div>
+
+    {/* SCREENSHOT MODE */}
+    {uploadMode==='SCREENSHOT'&&(
+      <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);if(e.dataTransfer.files[0])process(e.dataTransfer.files[0]);}} onClick={()=>!uploading&&fileRef.current?.click()} style={{margin:"10px 28px",border:`1px dashed ${drag?"var(--gold-border)":"var(--border)"}`,borderRadius:2,background:drag?"var(--gold-dim)":"transparent",padding:"24px",cursor:uploading?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",minHeight:72,transition:"all 0.15s"}}>
+        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>e.target.files[0]&&process(e.target.files[0])}/>
+        {uploading||prog?(
+          <div style={{display:"flex",alignItems:"center",gap:12}}><span className="spinner"/><span style={{fontSize:12,letterSpacing:"0.08em",color:"var(--gold)"}}>{prog||"Processing..."}</span></div>
+        ):(
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:22,color:"var(--gold)",marginBottom:6,opacity:0.7}}>+</div>
+            <div style={{fontSize:12,letterSpacing:"0.06em",color:"var(--text2)"}}>Drop screenshot or click to upload</div>
+            <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Analyzed by Claude · Saved to cloud</div>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* BULK MODE */}
+    {uploadMode==='BULK'&&(
+      <div style={{margin:"10px 28px"}}>
+        <div onDragOver={e=>{e.preventDefault();setBulkDrag(true);}} onDragLeave={()=>setBulkDrag(false)} onDrop={e=>{e.preventDefault();setBulkDrag(false);addBulkFiles(e.dataTransfer.files);}} onClick={()=>bulkFileRef.current?.click()} style={{border:`1px dashed ${bulkDrag?"var(--gold-border)":"var(--border)"}`,borderRadius:2,background:bulkDrag?"var(--gold-dim)":"transparent",padding:"20px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",minHeight:64,marginBottom:10,transition:"all 0.15s"}}>
+          <input ref={bulkFileRef} type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>addBulkFiles(e.target.files)}/>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:12,letterSpacing:"0.06em",color:"var(--text2)"}}>Drop multiple screenshots · analyzed sequentially</div>
           </div>
         </div>
-        <div style={{border:"1px solid #1a1a1a",maxHeight:260,overflowY:"auto"}}>
-          {bulkQueue.map(item=>{
-            const c=item.result?CC[item.result.category]||CC.Tools:null;
-            return(<div key={item.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderBottom:"1px solid #111"}}>
-              <img src={item.preview} alt="" style={{width:38,height:38,objectFit:"cover",flexShrink:0,opacity:.75}}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:8,color:"#e0d5c0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.result?.title||item.name}</div>
-                {item.result&&<div style={{fontSize:7,letterSpacing:1,color:c?.text,marginTop:2}}>{item.result.category}</div>}
-                {item.status==='analyzing'&&<div style={{fontSize:7,letterSpacing:2,color:"#fbbf24",marginTop:2}}>ANALYZING...</div>}
+        {bulkQueue.length>0&&(
+          <div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:12,color:"var(--text2)"}}>{bulkQueue.length} screenshots</span>
+                <span style={{fontSize:11,color:"var(--text3)"}}>{bulkQueue.filter(i=>i.status==='done').length} saved</span>
               </div>
-              <span style={{fontSize:12,color:item.status==='done'?"#4ade80":item.status==='analyzing'?"#fbbf24":item.status==='error'?"#f87171":"#2a2a2a",flexShrink:0}}>
-                {item.status==='queued'?"○":item.status==='analyzing'?"◉":item.status==='done'?"✓":"✗"}
-              </span>
-            </div>);
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                {!bulkProcessing&&bulkQueue.some(i=>i.status==='queued')&&(
+                  <button className="btn btn-gold" onClick={runBulk} style={{fontSize:12,padding:"6px 18px"}}>▶ Analyze All</button>
+                )}
+                {bulkProcessing&&<div style={{display:"flex",alignItems:"center",gap:8}}><span className="spinner"/><span style={{fontSize:12,color:"var(--gold)"}}>Analyzing...</span></div>}
+                <button className="btn btn-ghost" onClick={()=>setBulkQueue([])} style={{fontSize:11,padding:"5px 12px"}}>Clear</button>
+              </div>
+            </div>
+            <div style={{border:"1px solid var(--border)",borderRadius:2,overflow:"hidden",maxHeight:280,overflowY:"auto"}}>
+              {bulkQueue.map((item,idx)=>{
+                const c=item.result?CC[item.result.category]||CC.Tools:null;
+                return(
+                  <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderBottom:idx<bulkQueue.length-1?"1px solid var(--border)":"none",background:"var(--card)"}}>
+                    <img src={item.preview} alt="" style={{width:44,height:28,objectFit:"cover",borderRadius:1,flexShrink:0,opacity:0.8}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500}}>{item.result?.title||item.name}</div>
+                      {item.result&&<div style={{fontSize:11,color:c?.text,marginTop:2,display:"flex",alignItems:"center",gap:5}}><CatDot cat={item.result.category} size={5}/>{item.result.category}</div>}
+                      {item.status==='analyzing'&&<div style={{fontSize:11,color:"var(--gold)",marginTop:2,display:"flex",alignItems:"center",gap:6}}><span className="spinner" style={{width:10,height:10}}/>Analyzing...</div>}
+                    </div>
+                    <div style={{flexShrink:0,fontSize:14}}>
+                      {item.status==='queued'&&<span style={{color:"var(--text3)"}}>○</span>}
+                      {item.status==='analyzing'&&<span style={{color:"var(--gold)"}}>◉</span>}
+                      {item.status==='done'&&<span style={{color:"#4ade80"}}>✓</span>}
+                      {item.status==='error'&&<span style={{color:"#f87171"}}>✗</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* ARTICLE MODE */}
+    {uploadMode==='ARTICLE'&&(
+      <div style={{margin:"10px 28px"}}>
+        <div style={{display:"flex",gap:6,marginBottom:10}}>
+          {['url','text'].map(m=>(
+            <button key={m} className={`btn btn-mode${artSubMode===m?' active':''}`} onClick={()=>{setArtSubMode(m);setArtPreview(null);}} style={{fontSize:10,padding:"5px 14px"}}>
+              {m==='url'?"Paste URL":"Paste Text"}
+            </button>
+          ))}
+        </div>
+        {artSubMode==='url'&&(
+          <div style={{marginBottom:10}}>
+            <input value={artUrl} onChange={e=>setArtUrl(e.target.value)} onKeyDown={e=>e.key==='Enter'&&artUrl.trim()&&runArticle()} placeholder="https://example.com/article-to-analyze" className="art-input" style={{marginBottom:6}}/>
+            <div style={{fontSize:11,color:"var(--text3)",letterSpacing:"0.04em"}}>Claude fetches and reads the full article, then extracts key insights</div>
+          </div>
+        )}
+        {artSubMode==='text'&&(
+          <div style={{marginBottom:10}}>
+            <textarea value={artText} onChange={e=>setArtText(e.target.value)} placeholder="Paste article text here..." rows={6} className="art-input" style={{marginBottom:6}}/>
+            <div style={{fontSize:11,color:"var(--text3)",letterSpacing:"0.04em"}}>Claude extracts title, summary, action steps, and tags</div>
+          </div>
+        )}
+        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:artPreview?14:0}}>
+          <button className="btn btn-gold" onClick={runArticle} disabled={artAnalyzing||(artSubMode==='url'?!artUrl.trim():!artText.trim())} style={{opacity:artAnalyzing||(artSubMode==='url'?!artUrl.trim():!artText.trim())?0.35:1,fontSize:12,padding:"8px 20px",display:"flex",alignItems:"center",gap:8}}>
+            {artAnalyzing?<><span className="spinner"/>Analyzing...</>:"Analyze"}
+          </button>
+          {artPreview&&<button className="btn btn-success" onClick={saveArticle} style={{fontSize:12,padding:"8px 20px"}}>Save to Board</button>}
+        </div>
+        {artPreview&&(
+          <div style={{border:"1px solid var(--border)",borderRadius:2,background:"var(--card)",padding:"16px",marginTop:4,borderLeft:`3px solid ${CC[artPreview.category]?.border||"var(--gold)"}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <CatDot cat={artPreview.category}/>
+              <span style={{fontSize:11,color:CC[artPreview.category]?.text,letterSpacing:"0.06em",fontFamily:"'Syne',sans-serif",fontWeight:600}}>{artPreview.category?.toUpperCase()}</span>
+            </div>
+            <div style={{fontSize:15,fontWeight:600,color:"var(--text)",marginBottom:8,lineHeight:1.3,fontFamily:"'Syne',sans-serif"}}>{artPreview.title}</div>
+            <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.7,marginBottom:12}}>{artPreview.summary}</div>
+            {(artPreview.actionSteps||[]).length>0&&(
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:10,letterSpacing:"0.1em",color:"var(--text3)",textTransform:"uppercase",fontFamily:"'Syne',sans-serif",marginBottom:8}}>Action Steps</div>
+                {(artPreview.actionSteps||[]).map((s,i)=>(
+                  <div key={i} style={{display:"flex",gap:10,marginBottom:6}}>
+                    <span style={{fontSize:11,color:"var(--gold)",fontWeight:600,minWidth:18,flexShrink:0,fontFamily:"'Syne',sans-serif"}}>{String(i+1).padStart(2,"0")}</span>
+                    <span style={{fontSize:12,color:"var(--text2)",lineHeight:1.5}}>{s}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {(artPreview.tags||[]).map(t=>(<span key={t} className="tag">#{t}</span>))}
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* ERROR */}
+    {err&&(
+      <div style={{margin:"6px 28px",padding:"10px 16px",background:"rgba(248,113,113,0.06)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:2,color:"#f87171",fontSize:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span>{err}</span>
+        <button onClick={()=>setErr(null)} style={{background:"none",border:"none",color:"#f87171",fontSize:16,padding:"0 4px"}}>×</button>
+      </div>
+    )}
+
+    {/* FILTERS + SEARCH */}
+    {items.length>0&&(
+      <div style={{margin:"16px 28px 0",display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          {CATS.map(c=>{
+            const active=filter===c;
+            const col=CC[c];
+            return(
+              <button key={c} onClick={()=>setFilter(c)} style={{background:active?(c==="All"?"var(--gold-dim)":col.bg):"transparent",border:`1px solid ${active?(c==="All"?"var(--gold-border)":col.border):"var(--border)"}`,borderRadius:2,color:active?(c==="All"?"var(--gold)":col.text):"var(--text2)",padding:"5px 14px",fontSize:11,fontWeight:500,letterSpacing:"0.04em",display:"flex",alignItems:"center",gap:6}}>
+                {c!=="All"&&<CatDot cat={c} size={5}/>}
+                {c}{c!=="All"?` · ${counts[c]}`:` · ${items.length}`}
+              </button>
+            );
           })}
         </div>
-      </div>)}
-    </div>)}
-
-    {/* ARTICLE — URL or paste */}
-    {uploadMode==='ARTICLE'&&(<div style={{margin:"8px 20px"}}>
-      <div style={{display:"flex",gap:4,marginBottom:8}}>
-        {['url','text'].map(m=>(
-          <button key={m} onClick={()=>{setArtSubMode(m);setArtPreview(null);}} style={{background:artSubMode===m?"rgba(251,191,36,.07)":"none",border:`1px solid ${artSubMode===m?"#fbbf24":"#1e1e1e"}`,color:artSubMode===m?"#fbbf24":"#3a3020",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"3px 8px"}}>{m==='url'?"⊕ PASTE URL":"≡ PASTE TEXT"}</button>
-        ))}
-      </div>
-      {artSubMode==='url'&&(<div style={{marginBottom:8}}>
-        <input value={artUrl} onChange={e=>setArtUrl(e.target.value)} onKeyDown={e=>e.key==='Enter'&&artUrl.trim()&&runArticle()} placeholder="https://example.com/article" className="art-input" style={{marginBottom:4}}/>
-        <div style={{fontSize:7,letterSpacing:2,color:"#2a2018"}}>CLAUDE FETCHES · READS · ANALYZES THE FULL ARTICLE</div>
-      </div>)}
-      {artSubMode==='text'&&(<div style={{marginBottom:8}}>
-        <textarea value={artText} onChange={e=>setArtText(e.target.value)} placeholder="Paste article text here..." rows={6} className="art-input" style={{marginBottom:4}}/>
-        <div style={{fontSize:7,letterSpacing:2,color:"#2a2018"}}>PASTE FULL ARTICLE TEXT · CLAUDE EXTRACTS KEY INSIGHTS</div>
-      </div>)}
-      <div style={{display:"flex",gap:6,marginBottom:artPreview?10:0,alignItems:"center"}}>
-        <button onClick={runArticle} disabled={artAnalyzing||(artSubMode==='url'?!artUrl.trim():!artText.trim())} style={{background:"#1a1408",border:"1px solid #fbbf24",color:"#fbbf24",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"5px 12px",opacity:artAnalyzing||(artSubMode==='url'?!artUrl.trim():!artText.trim())?0.4:1,display:"flex",alignItems:"center",gap:6}}>
-          {artAnalyzing?(<><span style={{width:10,height:10,border:"1px solid #fbbf24",borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .8s linear infinite"}}/><span>ANALYZING...</span></>):"◈ ANALYZE"}
-        </button>
-        {artPreview&&(<button onClick={saveArticle} style={{background:"#1a2e1a",border:"1px solid #4ade80",color:"#4ade80",fontFamily:"'Courier New',monospace",fontSize:7,letterSpacing:2,padding:"5px 12px"}}>↑ SAVE TO BOARD</button>)}
-      </div>
-      {artPreview&&(<div style={{border:"1px solid #2a2018",background:"#0d0d0d",padding:"12px",marginTop:4}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-          <span style={{fontSize:7,letterSpacing:2,padding:"2px 6px",border:`1px solid ${CC[artPreview.category]?.border||"#fbbf24"}`,color:CC[artPreview.category]?.text||"#fbbf24",background:CC[artPreview.category]?.bg||"#2e2a1a"}}>{artPreview.category}</span>
-          <span style={{fontSize:10,fontWeight:700,color:"#e0d5c0"}}>{artPreview.title}</span>
+        <div style={{flex:1,minWidth:180,display:"flex",alignItems:"center",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:2,padding:"0 12px",gap:8}}>
+          <span style={{color:"var(--text3)",fontSize:13}}>⌕</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search intel..." style={{flex:1,background:"none",border:"none",outline:"none",color:"var(--text)",fontSize:12,padding:"9px 0",letterSpacing:"0.02em"}}/>
+          {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",color:"var(--text3)",fontSize:14,padding:"0 2px"}}>×</button>}
         </div>
-        <div style={{fontSize:9,color:"#7a7060",lineHeight:1.7,marginBottom:8}}>{artPreview.summary}</div>
-        {(artPreview.actionSteps||[]).length>0&&(<><div style={{fontSize:7,letterSpacing:3,color:"#3a3020",marginBottom:4}}>✦ ACTION STEPS</div>
-        {(artPreview.actionSteps||[]).map((s,i)=>(<div key={i} style={{display:"flex",gap:6,marginBottom:3}}><span style={{fontSize:7,color:"#fbbf24",minWidth:14,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span><span style={{fontSize:8,color:"#9a8860",lineHeight:1.5}}>{s}</span></div>))}</>)}
-        <div style={{display:"flex",gap:3,flexWrap:"wrap",marginTop:8}}>{(artPreview.tags||[]).map(t=>(<span key={t} style={{fontSize:6,letterSpacing:1,color:"#2a2018",border:"1px solid #1a1010",padding:"1px 4px"}}>#{t}</span>))}</div>
-      </div>)}
-    </div>)}
-
-    {err&&<div style={{margin:"4px 20px 8px",padding:"8px 12px",background:"#2e1a1a",border:"1px solid #f87171",color:"#f87171",fontSize:9,display:"flex",justifyContent:"space-between"}}><span>⚠ {err}</span><button onClick={()=>setErr(null)} style={{background:"none",border:"none",color:"#f87171"}}>✕</button></div>}
-
-    {items.length>0&&(<div style={{padding:"8px 20px 12px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",borderBottom:"1px solid #111",borderTop:"1px solid #111",marginTop:8}}>
-      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{CATS.map(c=>{const active=filter===c;return(<button key={c} onClick={()=>setFilter(c)} style={{background:active?"rgba(251,191,36,.07)":"none",border:`1px solid ${active?"#fbbf24":CC[c]?.border||"#222"}`,color:active?"#fbbf24":CC[c]?.text||"#4a4030",padding:"3px 8px",fontSize:7,letterSpacing:2,fontFamily:"'Courier New',monospace"}}>{c}{c!=="All"?` ${counts[c]}`:""}</button>);})}</div>
-      <div style={{flex:1,minWidth:150,display:"flex",alignItems:"center",border:"1px solid #1a1a1a",padding:"0 8px",gap:4}}>
-        <span style={{color:"#3a3020",fontSize:12}}>⌕</span>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="SEARCH INTEL..." style={{flex:1,background:"none",border:"none",outline:"none",color:"#e0d5c0",fontFamily:"'Courier New',monospace",fontSize:8,letterSpacing:1,padding:"6px 0"}}/>
-        {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",color:"#3a3020",fontSize:9}}>✕</button>}
       </div>
-    </div>)}
+    )}
 
-    <div style={{display:"flex",minHeight:"calc(100vh - 320px)"}}>
-      <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:1,padding:1,background:"#0f0f0f",alignContent:"start"}}>
-        {visible.length===0&&items.length>0&&<div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",gap:10}}><span style={{fontSize:28,color:"#1e1e1e"}}>◈</span><span style={{fontSize:9,letterSpacing:3,color:"#2a2a2a"}}>NO INTEL FOUND</span></div>}
-        {visible.map(item=>{const c=CC[item.category]||CC.Tools;const active=sel?.id===item.id;return(
-          <div key={item.id} onClick={()=>setSel(active?null:item)} style={{background:active?"#100e08":"#0d0d0d",border:`1px solid ${active?c.border:"#1a1a1a"}`,cursor:"pointer",display:"flex",flexDirection:"column"}}>
-            <div style={{position:"relative",aspectRatio:"16/9",overflow:"hidden",background:"#0d0d0d"}}>
-              <img src={item.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover",filter:"brightness(.85) saturate(.8)"}}/>
-              <div style={{position:"absolute",top:6,left:6,fontSize:7,letterSpacing:2,padding:"2px 5px",border:`1px solid ${c.border}`,background:c.bg,color:c.text}}>{item.category}</div>
-            </div>
-            <div style={{padding:"9px 11px",flex:1,display:"flex",flexDirection:"column",gap:6}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#e0d5c0",lineHeight:1.3}}>{item.title}</div>
-              <div style={{fontSize:8,color:"#4a4030",lineHeight:1.6,flex:1}}>{item.summary}</div>
-              <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{(item.tags||[]).slice(0,4).map(t=><span key={t} style={{fontSize:6,letterSpacing:1,color:"#2a2018",border:"1px solid #1a1010",padding:"1px 4px"}}>{t}</span>)}</div>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <span style={{fontSize:6,color:"#2a2018",letterSpacing:1}}>{ago(item.timestamp)}</span>
-                <button onClick={e=>{e.stopPropagation();delItem(item.id);}} style={{background:"none",border:"none",color:"#2a2018",fontSize:9,fontFamily:"'Courier New',monospace"}}>✕</button>
+    {/* GRID */}
+    <div style={{display:"flex",margin:"16px 0 0",gap:0}}>
+      <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:"12px",padding:"0 28px 28px",alignContent:"start"}}>
+        {visible.length===0&&items.length>0&&(
+          <div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"64px 20px",gap:12}}>
+            <div style={{width:40,height:40,borderRadius:"50%",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"var(--text3)",fontSize:16}}>○</span></div>
+            <span style={{fontSize:11,letterSpacing:"0.1em",color:"var(--text3)",textTransform:"uppercase",fontFamily:"'Syne',sans-serif"}}>No intel found</span>
+          </div>
+        )}
+        {visible.map(item=>{
+          const c=CC[item.category]||CC.Tools;
+          const active=sel?.id===item.id;
+          return(
+            <div key={item.id} className="card" onClick={()=>setSel(active?null:item)} style={{borderColor:active?c.border:"var(--border)",borderLeft:`3px solid ${c.border}`}}>
+              <div style={{position:"relative",aspectRatio:"16/9",overflow:"hidden",background:"var(--bg)"}}>
+                <img src={item.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover",opacity:0.9}}/>
+                <div style={{position:"absolute",top:0,right:0,bottom:0,left:0,background:"linear-gradient(to bottom,transparent 50%,rgba(9,10,20,0.6))"}}/>
+              </div>
+              <div style={{padding:"13px 14px",flex:1,display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <CatDot cat={item.category} size={6}/>
+                  <span style={{fontSize:10,color:c.text,letterSpacing:"0.06em",fontFamily:"'Syne',sans-serif",fontWeight:600}}>{item.category?.toUpperCase()}</span>
+                </div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--text)",lineHeight:1.35,fontFamily:"'Syne',sans-serif"}}>{item.title}</div>
+                <div style={{fontSize:11,color:"var(--text2)",lineHeight:1.65,flex:1}}>{item.summary}</div>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  {(item.tags||[]).slice(0,4).map(t=><span key={t} className="tag">#{t}</span>)}
+                </div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:4,borderTop:"1px solid var(--border)"}}>
+                  <span style={{fontSize:10,color:"var(--text3)"}}>{ago(item.timestamp)}</span>
+                  <button onClick={e=>{e.stopPropagation();delItem(item.id);}} style={{background:"none",border:"none",color:"var(--text3)",fontSize:16,padding:"0 2px",lineHeight:1}}>&times;</button>
+                </div>
               </div>
             </div>
-          </div>);})}
+          );
+        })}
       </div>
-      {sel&&sc&&(<div style={{width:290,borderLeft:"1px solid #111",padding:16,background:"#080808",overflowY:"auto",display:"flex",flexDirection:"column",gap:12,maxHeight:"calc(100vh - 320px)"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{fontSize:7,letterSpacing:4,fontWeight:700,color:sc.text}}>{sel.category?.toUpperCase()}</span>
-          <button onClick={()=>setSel(null)} style={{background:"none",border:"1px solid #1a1a1a",color:"#4a4030",fontSize:9,width:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Courier New',monospace"}}>✕</button>
+
+      {/* DETAIL PANEL */}
+      {sel&&sc&&(
+        <div style={{width:320,flexShrink:0,borderLeft:"1px solid var(--border)",padding:"24px 20px",background:"rgba(11,12,24,0.9)",overflowY:"auto",maxHeight:"calc(100vh - 120px)",position:"sticky",top:64,display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <CatDot cat={sel.category}/>
+              <span style={{fontSize:10,letterSpacing:"0.12em",color:sc.text,fontFamily:"'Syne',sans-serif",fontWeight:700}}>{sel.category?.toUpperCase()}</span>
+            </div>
+            <button onClick={()=>setSel(null)} style={{background:"none",border:"1px solid var(--border)",borderRadius:2,color:"var(--text2)",width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>&times;</button>
+          </div>
+
+          <img src={sel.thumbnail} alt="" style={{width:"100%",aspectRatio:"16/9",objectFit:"cover",borderRadius:1,border:`1px solid ${sc.border}22`}}/>
+
+          <div style={{fontSize:16,fontWeight:700,color:"var(--text)",lineHeight:1.3,fontFamily:"'Syne',sans-serif"}}>{sel.title}</div>
+
+          <div>
+            <div style={{fontSize:10,letterSpacing:"0.1em",color:"var(--text3)",textTransform:"uppercase",fontFamily:"'Syne',sans-serif",marginBottom:8,paddingBottom:6,borderBottom:"1px solid var(--border)"}}>Summary</div>
+            <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.75}}>{sel.summary}</div>
+          </div>
+
+          <div>
+            <div style={{fontSize:10,letterSpacing:"0.1em",color:"var(--text3)",textTransform:"uppercase",fontFamily:"'Syne',sans-serif",marginBottom:10,paddingBottom:6,borderBottom:"1px solid var(--border)"}}>Action Steps</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {(sel.actionSteps||[]).map((s,i)=>(
+                <div key={i} style={{display:"flex",gap:10}}>
+                  <span style={{fontSize:11,color:"var(--gold)",fontWeight:700,minWidth:20,flexShrink:0,fontFamily:"'Syne',sans-serif"}}>{String(i+1).padStart(2,"0")}</span>
+                  <span style={{fontSize:12,color:"var(--text2)",lineHeight:1.55}}>{s}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{fontSize:10,letterSpacing:"0.1em",color:"var(--text3)",textTransform:"uppercase",fontFamily:"'Syne',sans-serif",marginBottom:8,paddingBottom:6,borderBottom:"1px solid var(--border)"}}>Tags</div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {(sel.tags||[]).map(t=>(<span key={t} className="tag" onClick={()=>{setSearch(t);setSel(null);}}>#{t}</span>))}
+            </div>
+          </div>
+
+          <div style={{fontSize:10,color:"var(--text3)",marginTop:"auto",paddingTop:12,borderTop:"1px solid var(--border)"}}>Logged {new Date(sel.timestamp).toLocaleString()}</div>
         </div>
-        <img src={sel.thumbnail} alt="" style={{width:"100%",aspectRatio:"16/9",objectFit:"cover",border:`1px solid ${sc.border}33`}}/>
-        <div style={{fontSize:12,fontWeight:700,color:sc.text,lineHeight:1.3}}>{sel.title}</div>
-        <div><div style={{fontSize:7,letterSpacing:4,color:"#3a3020",borderBottom:"1px solid #111",paddingBottom:4,marginBottom:6}}>◈ SUMMARY</div><div style={{fontSize:9,color:"#7a7060",lineHeight:1.7}}>{sel.summary}</div></div>
-        <div><div style={{fontSize:7,letterSpacing:4,color:"#3a3020",borderBottom:"1px solid #111",paddingBottom:4,marginBottom:6}}>✦ ACTION STEPS</div>
-          <ol style={{margin:0,padding:0,listStyle:"none",display:"flex",flexDirection:"column",gap:7}}>{(sel.actionSteps||[]).map((s,i)=>(<li key={i} style={{display:"flex",gap:7,fontSize:8,color:"#9a8860",lineHeight:1.5}}><span style={{color:sc.text,fontWeight:700,minWidth:14,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span><span>{s}</span></li>))}</ol>
-        </div>
-        <div><div style={{fontSize:7,letterSpacing:4,color:"#3a3020",borderBottom:"1px solid #111",paddingBottom:4,marginBottom:6}}>⊕ TAGS</div>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{(sel.tags||[]).map(t=>(<span key={t} onClick={()=>{setSearch(t);setSel(null);}} style={{fontSize:7,letterSpacing:1,color:"#3a3020",border:"1px solid #1a1010",padding:"2px 6px",cursor:"pointer"}}>#{t}</span>))}</div>
-        </div>
-        <div style={{fontSize:6,letterSpacing:2,color:"#1a1010",marginTop:"auto"}}>LOGGED {new Date(sel.timestamp).toLocaleString().toUpperCase()}</div>
-      </div>)}
+      )}
+    </div>
+
     </div>
   </div>);
 }
